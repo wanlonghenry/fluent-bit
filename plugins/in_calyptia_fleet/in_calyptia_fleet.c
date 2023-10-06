@@ -184,6 +184,16 @@ struct reload_ctx {
     flb_sds_t cfg_path;
 };
 
+static flb_sds_t generate_fleet_directory(struct flb_in_calyptia_fleet_config *ctx, flb_sds_t *fleet_dir)
+{
+    if (ctx->fleet_name != NULL) {
+        return flb_sds_printf(fleet_dir, "%s" PATH_SEPARATOR "%s" PATH_SEPARATOR "%s",
+                       ctx->config_dir, ctx->machine_id, ctx->fleet_name);
+    }
+    return flb_sds_printf(fleet_dir, "%s" PATH_SEPARATOR "%s" PATH_SEPARATOR "%s",
+                    ctx->config_dir, ctx->machine_id, ctx->fleet_id);
+}
+
 static flb_sds_t fleet_config_filename(struct flb_in_calyptia_fleet_config *ctx, char *fname)
 {
     flb_sds_t cfgname;
@@ -804,7 +814,6 @@ static int get_calyptia_file(struct flb_in_calyptia_fleet_config *ctx,
                              time_t *time_last_modified)
  {
     struct flb_http_client *client;
-    char fname[4096] = { 0 };
     size_t len;
     FILE *fp;
     int ret = -1;
@@ -812,6 +821,7 @@ static int get_calyptia_file(struct flb_in_calyptia_fleet_config *ctx,
     struct flb_tm tm_last_modified = { 0 };
     int fbit_last_modified_len;
     time_t last_modified;
+    flb_sds_t fname;
 
     if (ctx == NULL || u_conn == NULL || url == NULL || dst == NULL) {
         return -1;
@@ -833,13 +843,14 @@ static int get_calyptia_file(struct flb_in_calyptia_fleet_config *ctx,
     flb_strptime(fbit_last_modified, "%a, %d %B %Y %H:%M:%S GMT", &tm_last_modified);
     last_modified = mktime(&tm_last_modified.tm);
 
-    /* skip the second PATH_SEPARATOR to allow creating files in the base 
-     * fleet_config directory. */
-    snprintf(fname, sizeof(fname)-1, "%s/%d%s", ctx->config_dir, (int)last_modified, dst);
+    fname = time_fleet_config_filename(ctx, last_modified);
 
-    errno = 0;
-    if (access(fname, F_OK) != -1 || errno == ENOENT) {
+    if (access(fname, F_OK) == 0) {
         ret = 0;
+        goto file_exists;
+    }
+
+    if (fname == NULL) {
         goto client_error;
     }
 
@@ -872,6 +883,7 @@ static int get_calyptia_file(struct flb_in_calyptia_fleet_config *ctx,
 file_error:
     fclose(fp);
 client_error:
+file_exists:
     flb_http_client_destroy(client);
     return ret;
 }
@@ -1123,13 +1135,9 @@ static int create_fleet_directory(struct flb_in_calyptia_fleet_config *ctx)
 
     myfleetdir = flb_sds_create_size(256);
 
-    if (ctx->fleet_name != NULL) {
-        flb_sds_printf(&myfleetdir, "%s" PATH_SEPARATOR "%s" PATH_SEPARATOR "%s",
-                       ctx->config_dir, ctx->machine_id, ctx->fleet_name);
-    }
-    else {
-        flb_sds_printf(&myfleetdir, "%s" PATH_SEPARATOR "%s" PATH_SEPARATOR "%s",
-                       ctx->config_dir, ctx->machine_id, ctx->fleet_id);
+    if (generate_fleet_directory(ctx, &myfleetdir) == NULL) {
+        flb_sds_destroy(myfleetdir);
+        return -1;
     }
 
     if (access(myfleetdir, F_OK) != 0) {
