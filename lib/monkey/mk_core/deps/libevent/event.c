@@ -1945,7 +1945,7 @@ event_base_loop(struct event_base *base, int flags)
 		clear_time_cache(base);
 
 		if (tv_p->tv_sec == 0 && tv_p->tv_usec == 0) {
-			tv_p->tv_usec = 100;
+			tv_p->tv_usec = 10000; // 10 milliseconds
 		}
 
 		res = evsel->dispatch(base, tv_p);
