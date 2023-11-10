@@ -1924,14 +1924,13 @@ event_base_loop(struct event_base *base, int flags)
 		tv_p = &tv;
 		if (!N_ACTIVE_CALLBACKS(base) && !(flags & EVLOOP_NONBLOCK)) {
 			timeout_next(base, &tv_p);
+		} else {
+			/*
+				* if we have active events, we just poll new events
+				* without waiting.
+				*/
+			evutil_timerclear(&tv);
 		}
-		// } else {
-		// 	/*
-		// 	 * if we have active events, we just poll new events
-		// 	 * without waiting.
-		// 	 */
-		// 	evutil_timerclear(&tv);
-		// }
 
 		/* If we have no events, we just exit */
 		if (0==(flags&EVLOOP_NO_EXIT_ON_EMPTY) &&
@@ -1944,6 +1943,10 @@ event_base_loop(struct event_base *base, int flags)
 		event_queue_make_later_events_active(base);
 
 		clear_time_cache(base);
+
+		if (tv_p->tv_sec == 0 && tv_p->tv_usec == 0) {
+			tv_p->tv_usec = 100;
+		}
 
 		res = evsel->dispatch(base, tv_p);
 
@@ -3107,10 +3110,10 @@ timeout_next(struct event_base *base, struct timeval **tv_p)
 		goto out;
 	}
 
-	// if (evutil_timercmp(&ev->ev_timeout, &now, <=)) {
-	// 	evutil_timerclear(tv);
-	// 	goto out;
-	// }
+	if (evutil_timercmp(&ev->ev_timeout, &now, <=)) {
+		evutil_timerclear(tv);
+		goto out;
+	}
 
 	evutil_timersub(&ev->ev_timeout, &now, tv);
 
