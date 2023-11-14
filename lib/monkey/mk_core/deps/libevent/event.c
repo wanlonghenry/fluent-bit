@@ -1926,9 +1926,9 @@ event_base_loop(struct event_base *base, int flags)
 			timeout_next(base, &tv_p);
 		} else {
 			/*
-				* if we have active events, we just poll new events
-				* without waiting.
-				*/
+			 * if we have active events, we just poll new events
+			 * without waiting.
+			 */
 			evutil_timerclear(&tv);
 		}
 
