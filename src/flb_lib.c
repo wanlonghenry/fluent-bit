@@ -626,7 +626,6 @@ static void flb_lib_worker(void *data)
 
     config = ctx->config;
     mk_utils_worker_rename("flb-pipeline");
-    event_enable_debug_mode();
     ret = flb_engine_start(config);
     if (ret == -1) {
         flb_engine_failed(config);
